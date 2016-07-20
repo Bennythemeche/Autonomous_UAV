@@ -22,10 +22,12 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
 #include "TinyGPS++.h"
-
+#include <limits.h>
+//#include <math.h>
 #include <string.h>
 #include <ctype.h>
 #include <stdlib.h>
+//#include "Arduino.h"
 
 #define _GPRMCterm   "GPRMC"
 #define _GPGGAterm   "GPGGA"
@@ -279,7 +281,9 @@ bool TinyGPSPlus::endOfTermHandler()
   return false;
 }
 
-/* static */
+/*
+//Comment out distanceBetween and courseTo for edison
+static 
 double TinyGPSPlus::distanceBetween(double lat1, double long1, double lat2, double long2)
 {
   // returns distance in meters between two positions, both specified
@@ -324,6 +328,7 @@ double TinyGPSPlus::courseTo(double lat1, double long1, double lat2, double long
   }
   return degrees(a2);
 }
+*/
 
 const char *TinyGPSPlus::cardinal(double course)
 {

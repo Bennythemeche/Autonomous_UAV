@@ -30,6 +30,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "WProgram.h"
 #endif
 #include <limits.h>
+//#include <math.h>
+
 
 #define _GPS_VERSION "0.92" // software version of this library
 #define _GPS_MPH_PER_KNOT 1.15077945
@@ -229,8 +231,8 @@ public:
 
   static const char *libraryVersion() { return _GPS_VERSION; }
 
-  static double distanceBetween(double lat1, double long1, double lat2, double long2);
-  static double courseTo(double lat1, double long1, double lat2, double long2);
+  //static double distanceBetween(double lat1, double long1, double lat2, double long2); //comment out for edison
+  //static double courseTo(double lat1, double long1, double lat2, double long2);      //comment out for edison
   static const char *cardinal(double course);
 
   static int32_t parseDecimal(const char *term);
