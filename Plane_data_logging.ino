@@ -1,8 +1,15 @@
-//TODO: Figure out if we should change this to do hardware serial with mega
+/*CONNECTIONS
+ * SD card:
+ *  CS--->10
+ *  DI--->51
+ *  SCK-->52
+ *  D0--->50
+ */
 
 #include <Wire.h>
 #include <SPI.h>
 #include <SD.h>
+#include "I2Cdev.h"
 #include <Adafruit_GPS.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BMP280.h>
@@ -12,10 +19,17 @@ const int throttle_pin=18;
 const int roll_pin=19;
 const int pitch_pin=20;
 
-File data_file;
+//const float Asf_nom=2*9.81/
 
+File data_file;
+//File data_file;
+
+char c;
+bool GPS_update_flag;
+
+
+Adafruit_GPS GPS(&Serial1);
 HardwareSerial mySerial=Serial1;
-Adafruit_GPS GPS(&mySerial);
 Adafruit_BMP280 bme;
 MPU6050 mpu;
 
@@ -25,6 +39,8 @@ float sl_press;
 void SD_card_setup();
 void GPS_setup();
 void Barometer_setup();
+void IMU_setup();
+void read_IMU();
 
 // MPU control/status vars
 bool dmpReady = false;  // set true if DMP init was successful
@@ -70,14 +86,20 @@ volatile unsigned long roll_input;
 void setup() {
 
   Serial.begin(115200);
+  while (!Serial){};
 
   SD_card_setup();
 
+  
+
+  IMU_setup();
+  
   GPS_setup();
+  
 
   Barometer_setup();
 
-  rc_input_setup();
+  //rc_input_setup();
 
   
 }
@@ -90,15 +112,20 @@ void setup() {
 void loop() {
 
   
+  
   //If serial data is available, disable interrupts
+  
+  /*
   if (Serial1.available()){
     noInterrupts();
+    
   }
   
   //If serial data is not available, allow interrupts
   else{
     interrupts();
   }
+  */
 
   //We want to record GPS and barometer data at the same time.  We can get barometer pretty much any time, but only get GPS at 1Hz.
   //Whenever valid GPS data comes in, log that AND barometer data
@@ -117,17 +144,89 @@ void loop() {
     }
   }
 
-  //Barometer data is dealt with in a timer ISR, which reads and logs data
+  
 
   //Deal with inputs from radio
   
 
   
+  
+  
+  read_IMU();
+/*
+  Serial.println("SD card satus");
+  Serial.println(data_file);
+  //data_file = SD.open("dataFile.txt", FILE_WRITE);
+
+  Serial.println("SD card satus");
+  Serial.println(data_file);
+  data_file.println("in loop");
+  Serial.println("writing to SD card");
+  Serial.println(data_file.read());
+  //data_file.close();
+    
+  
+
+  delay(500);
+  */
+  
+  
+  /*
+  
+  //IMU stuff
+  // if programming failed, don't try to do anything
+    if (!dmpReady) return;
+
+    // wait for MPU interrupt or extra packet(s) available
+    if (!mpuInterrupt && fifoCount < packetSize) {
+        //move on to other stuff
+        return;
+    }
+
+    else{
+
+    // reset interrupt flag and get INT_STATUS byte
+    mpuInterrupt = false;
+    mpuIntStatus = mpu.getIntStatus();
+
+    // get current FIFO count
+    fifoCount = mpu.getFIFOCount();
+
+    // check for overflow (this should never happen unless our code is too inefficient)
+    if ((mpuIntStatus & 0x10) || fifoCount == 1024) {
+        // reset so we can continue cleanly
+        mpu.resetFIFO();
+        Serial.println(F("FIFO overflow!"));
+
+    // otherwise, check for DMP data ready interrupt (this should happen frequently)
+    } else if (mpuIntStatus & 0x02) {
+        // wait for correct available data length, should be a VERY short wait
+        while (fifoCount < packetSize) fifoCount = mpu.getFIFOCount();
+
+        // read a packet from FIFO
+        mpu.getFIFOBytes(fifoBuffer, packetSize);
+        
+        // track FIFO count here in case there is > 1 packet available
+        // (this lets us immediately read more without waiting for an interrupt)
+        fifoCount -= packetSize;
+    }
+
+    mpu.dmpGetQuaternion(&q, fifoBuffer);
+            Serial.print("quat\t");
+            Serial.print(q.w);
+            Serial.print("\t");
+            Serial.print(q.x);
+            Serial.print("\t");
+            Serial.print(q.y);
+            Serial.print("\t");
+            Serial.println(q.z);
+
+    }
 
   
 
     
-
+*/
     
     
     
@@ -185,22 +284,53 @@ void GPS_setup(){
 void GPS_BMP_log(){
   
   //Log GPS and barometer data at same time
+  //data_file=SD.open("dataFile.txt",FILE_WRITE);
   data_file.println("GPS: Lat: " + String(GPS.lat)+" Lon: " + String(GPS.lon) + " Alt: " + String(GPS.altitude) + " Spd: " + String(GPS.speed) + " Ang: " + String(GPS.angle) + " Fix: " + String(GPS.fix) + " Sat: " + String(GPS.satellites) + " Fxq: " + String(GPS.fixquality) + " GPt: " + String(GPS.hour) + "_" + String(GPS.seconds) + "_" + String(GPS.milliseconds) + " Syt: " + String(GPS_millis));
-  
-  data_file.println("Bar: Alt: " + String(bme.readAltitude(sl_press)) + " Prs: " + String(bme.readPressure()) + " Syt: " + String(GPS_millis)); //GPS time and barometer time should be the same
-    
+  data_file.flush();
+
+  Serial.println("GPS: Lat: " + String(GPS.lat)+" Lon: " + String(GPS.lon) + " Alt: " + String(GPS.altitude) + " Spd: " + String(GPS.speed) + " Ang: " + String(GPS.angle) + " Fix: " + String(GPS.fix) + " Sat: " + String(GPS.satellites) + " Fxq: " + String(GPS.fixquality) + " GPt: " + String(GPS.hour) + "_" + String(GPS.seconds) + "_" + String(GPS.milliseconds) + " Syt: " + String(GPS_millis));
+  Serial.println("Here");
+  //data_file.println("Bar: Alt: " + String(bme.readAltitude(sl_press)) + " Prs: " + String(bme.readPressure()) + " Syt: " + String(GPS_millis)); //GPS time and barometer time should be the same
+  Serial.println("Bar: Alt: " + String(bme.readAltitude(sl_press)) + " Prs: " + String(bme.readPressure()) + " Syt: " + String(GPS_millis));  
 }
 
 void SD_card_setup(){
-  Serial.println("Initializing SD card");
-  pinMode(10, OUTPUT);
+   Serial.print("Initializing SD card...");
+
   if (!SD.begin(10)) {
     Serial.println("initialization failed!");
     return;
   }
   Serial.println("initialization done.");
 
-  data_file = SD.open("data_file", FILE_WRITE);
+  // open the file. note that only one file can be open at a time,
+  // so you have to close this one before opening another.
+  data_file = SD.open("dataFile.txt", FILE_WRITE);
+
+  // if the file opened okay, write to it:
+  if (data_file) {
+    Serial.print("Writing to dataFile.txt...");
+    data_file.println("testing 1, 2, 3.");
+    // close the file:
+    data_file.close();
+    Serial.println("done.");
+  } else {
+    // if the file didn't open, print an error:
+    Serial.println("error opening dataFile.txt");
+  }
+
+  // re-open the file for reading:
+  data_file = SD.open("dataFile.txt");
+  if (data_file) {
+    Serial.println("dataFile.txt:");
+
+    // read from the file until there's nothing else in it:
+    while (data_file.available()) {
+      Serial.write(data_file.read());
+    }
+    
+  }
+  delay(1000); 
 }
 
 void Barometer_setup(){
@@ -280,6 +410,8 @@ void IMU_setup(){
 
 void read_IMU(){
   if (!dmpReady) return;
+
+  unsigned long Syt=millis();
   
 
   //if we aren't ready to read the IMU again, just get out of here
@@ -311,10 +443,34 @@ void read_IMU(){
         // (this lets us immediately read more without waiting for an interrupt)
         fifoCount -= packetSize;
 
+        mpu.dmpGetQuaternion(&q, fifoBuffer);
+        mpu.dmpGetAccel(&aa, fifoBuffer);
+        mpu.dmpGetGravity(&gravity, &q);
+        mpu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
+        mpu.dmpGetLinearAccelInWorld(&aaWorld, &aaReal, &q);
+
         //Log data
+        
+        //data_file=SD.open("dataFile.txt", FILE_WRITE);
+
         data_file.print("IMU: aax: " + String(aa.x) + " aay: " + String(aa.y) + " aaz: " +String(aa.z));
         data_file.print(" aWx: " + String(aaWorld.x) + " aWy: " + String(aaWorld.x) + " aWz: " +String(aaWorld.z));
-        data_file.println(" quw: " + String(q.w) + " qux: " + String(q.x) + "quy: " + String(q.y) + " quz: " + String(q.z));
+        data_file.print(" quw: " + String(q.w) + " qux: " + String(q.x) + " quy: " + String(q.y) + " quz: " + String(q.z));
+        data_file.println(" Syt: "+String(millis()));
+
+        data_file.flush();
+
+        
+        Serial.print("IMU: aax: " + String(aa.x) + " aay: " + String(aa.y) + " aaz: " +String(aa.z));
+        Serial.print(" aWx: " + String(aaWorld.x) + " aWy: " + String(aaWorld.x) + " aWz: " +String(aaWorld.z));
+        Serial.print(" quw: " + String(q.w) + " qux: " + String(q.x) + "quy: " + String(q.y) + " quz: " + String(q.z));
+        Serial.println(" Syt: "+String(millis()));
+        
+        //data_file.println("testing 1, 2, 3.");
+        
+        
+        
+        
     }
 
         
